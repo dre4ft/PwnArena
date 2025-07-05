@@ -20,7 +20,7 @@ async def read_index():
     return FileResponse(index_path, media_type="text/html")
 
 @app.get("/dashboard")
-async def dashboard(request: Request):
+async def dashboard(requ):
     token = request.cookies.get("access_token")
     if not token:
         # Try to get from Authorization header (for local dev)
