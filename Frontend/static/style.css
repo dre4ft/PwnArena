@@ -1,0 +1,51 @@
+body {
+            background: #1a0033;
+            color: #f3e6ff;
+        }
+        .navbar, .footer {
+            background: #2d014d;
+        }
+        .btn-primary {
+            background-color: #6c1aff;
+            border-color: #6c1aff;
+        }
+        .btn-primary:hover {
+            background-color: #4b0082;
+            border-color: #4b0082;
+        }
+        .card {
+            background: #2d014d;
+            border: none;
+            color: #f3e6ff;
+        }
+        .card-title {
+            color: #b266ff;
+        }
+        .footer {
+            color: #b266ff;
+            padding: 1rem 0;
+            text-align: center;
+            margin-top: 3rem;
+        }
+        /* Hidden menu styles */
+        #hiddenMenu {
+            display: none;
+            position: absolute;
+            top: 60px;
+            right: 30px;
+            background: #2d014d;
+            border: 1px solid #6c1aff;
+            border-radius: 8px;
+            min-width: 180px;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+        #hiddenMenu a {
+            display: block;
+            color: #f3e6ff;
+            padding: 12px 20px;
+            text-decoration: none;
+        }
+        #hiddenMenu a:hover {
+            background: #4b0082;
+        }
