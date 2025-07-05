@@ -49,3 +49,17 @@ body {
         #hiddenMenu a:hover {
             background: #4b0082;
         }
+        /* Deep purple for modal font */
+        .deep-purple-modal .modal-content, .deep-purple-modal .modal-header, .deep-purple-modal .modal-title, .deep-purple-modal .modal-body, .deep-purple-modal label, .deep-purple-modal .form-label, .deep-purple-modal .form-control, .deep-purple-modal .btn, .deep-purple-modal .nav-link, .deep-purple-modal .modal-footer {
+            color: #6c2eb7 !important;
+        }
+
+        /* Optionally, you can also style background or borders for more effect */
+        .deep-purple-modal .modal-content {
+            border: 2px solid #6c2eb7;
+        }
+        /* Ensure submit buttons in modals have white font */
+        .deep-purple-modal .modal-content .btn[type="submit"],
+        .deep-purple-modal .modal-footer .btn[type="submit"] {
+            color: #fff !important;
+        }

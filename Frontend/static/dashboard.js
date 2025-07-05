@@ -28,6 +28,42 @@ document.addEventListener('DOMContentLoaded', async function() {
     } catch (err) {
         document.getElementById('challengesList').innerHTML = '<div class="col-12 text-danger">Failed to load challenges.</div>';
     }
+    // Add Challenge Modal logic
+    var addChallengeBtn = document.getElementById('addChallengeBtn');
+    var addChallengeModal = new bootstrap.Modal(document.getElementById('addChallengeModal'));
+    addChallengeBtn.addEventListener('click', function() {
+        addChallengeModal.show();
+    });
+    var addChallengeForm = document.getElementById('addChallengeForm');
+    addChallengeForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var errorDiv = document.getElementById('addChallengeError');
+        errorDiv.style.display = 'none';
+        const token = localStorage.getItem('access_token');
+        const formData = new FormData(addChallengeForm);
+        try {
+            const response = await fetch('/api/challenges', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token
+                },
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok) {
+                addChallengeModal.hide();
+                addChallengeForm.reset();
+                // Refresh challenges list
+                location.reload();
+            } else {
+                errorDiv.textContent = data.detail || 'Failed to add challenge.';
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Failed to add challenge.';
+            errorDiv.style.display = 'block';
+        }
+    });
 });
 
 function renderChallenges(challenges) {
@@ -46,7 +82,7 @@ function renderChallenges(challenges) {
                     <h5 class="card-title">${chal.name}</h5>
                     <p class="card-text">${chal.description}</p>
                     <p class="card-text"><b>Type:</b> ${chal.type}</p>
-                    <a href="${chal.file_path}" class="btn btn-outline-light mb-2" download>Download</a>
+                    <button class="btn btn-outline-light mb-2 download-btn" data-challenge-id="${chal.id}" data-challenge-name="${chal.name}">Download</button>
                     <form class="submit-flag-form">
                         <input type="hidden" name="challenge_id" value="${chal.id}">
                         <div class="input-group mb-2">
@@ -58,6 +94,39 @@ function renderChallenges(challenges) {
                 </div>
             </div>
         `;
+        // Download button logic
+        card.querySelector('.download-btn').addEventListener('click', async function() {
+            const challengeId = this.getAttribute('data-challenge-id');
+            const challengeName = this.getAttribute('data-challenge-name');
+            const token = localStorage.getItem('access_token');
+            try {
+                const response = await fetch(`/api/challenges/${challengeId}/download`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!response.ok) {
+                    alert('Failed to download file.');
+                    return;
+                }
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = challengeName;
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '').trim();
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                }, 100);
+            } catch (err) {
+                alert('Download failed.');
+            }
+        });
         // Add flag submission logic
         card.querySelector('.submit-flag-form').addEventListener('submit', async function(e) {
             e.preventDefault();

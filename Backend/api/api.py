@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends, status, Header
+from fastapi import APIRouter, HTTPException, Depends, status, Header, UploadFile, File, Form
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 import hashlib
@@ -8,6 +8,9 @@ import secrets
 import jwt
 from datetime import datetime, timedelta
 from typing import List, Optional
+import shutil
+import os
+from fastapi.responses import FileResponse
 
 DATABASE_URL = "sqlite:///./users.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -28,6 +31,13 @@ class Challenge(Base):
     type = Column(String)
     file_path = Column(String)
     flag = Column(String, unique=True)
+
+class ChallengeSolve(Base):
+    __tablename__ = 'challenge_solves'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    challenge_id = Column(Integer, ForeignKey('challenges.id'))
+    __table_args__ = (UniqueConstraint('user_id', 'challenge_id', name='_user_challenge_uc'),)
 
 Base.metadata.create_all(bind=engine)
 
@@ -119,7 +129,15 @@ def get_challenges(db: Session = Depends(get_db), authorization: str = Header(No
     return challenges
 
 @router.post("/challenges", response_model=ChallengeSchema)
-def create_challenge(challenge: ChallengeSchema, db: Session = Depends(get_db), authorization: str = Header(None)):
+def create_challenge(
+    name: str = Form(...),
+    description: str = Form(...),
+    type: str = Form(...),
+    flag: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    authorization: str = Header(None)
+):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1]
@@ -127,12 +145,19 @@ def create_challenge(challenge: ChallengeSchema, db: Session = Depends(get_db), 
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+    # Save file with timestamp
+    os.makedirs("challenges", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"{name}_{timestamp}_{file.filename}"
+    file_path = os.path.join("challenges", filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
     db_chal = Challenge(
-        name=challenge.name,
-        description=challenge.description,
-        type=challenge.type,
-        file_path=challenge.file_path,
-        flag=challenge.flag
+        name=name,
+        description=description,
+        type=type,
+        file_path=file_path,
+        flag=flag
     )
     db.add(db_chal)
     db.commit()
@@ -148,13 +173,48 @@ def submit_flag(challenge_id: int, submission: FlagSubmission, db: Session = Dep
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1]
     try:
-        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
     chal = db.query(Challenge).filter(Challenge.id == challenge_id).first()
     if not chal:
         raise HTTPException(status_code=404, detail="Challenge not found")
     if chal.flag == submission.flag:
+        user_id = int(payload["sub"])
+        # Check if already solved
+        existing = db.query(ChallengeSolve).filter_by(user_id=user_id, challenge_id=challenge_id).first()
+        if not existing:
+            solve = ChallengeSolve(user_id=user_id, challenge_id=challenge_id)
+            db.add(solve)
+            db.commit()
         return {"msg": "Correct!"}
     else:
         raise HTTPException(status_code=400, detail="Incorrect flag.")
+
+@router.get("/challenges/{challenge_id}/download")
+def download_challenge_file(challenge_id: int, db: Session = Depends(get_db), authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1]
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    chal = db.query(Challenge).filter(Challenge.id == challenge_id).first()
+    if not chal:
+        raise HTTPException(status_code=404, detail="Challenge not found")
+    if not os.path.exists(chal.file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    filename = os.path.basename(chal.file_path)
+    return FileResponse(chal.file_path, filename=filename, media_type='application/octet-stream')
+
+@router.get("/leaderboard")
+def get_leaderboard(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    results = db.query(User.username, func.count(ChallengeSolve.challenge_id).label('solves')) \
+        .join(ChallengeSolve, User.id == ChallengeSolve.user_id) \
+        .group_by(User.id) \
+        .order_by(func.count(ChallengeSolve.challenge_id).desc(), User.username.asc()) \
+        .all()
+    leaderboard = [{"username": r[0], "solves": r[1]} for r in results]
+    return leaderboard

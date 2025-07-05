@@ -20,7 +20,7 @@ async def read_index():
     return FileResponse(index_path, media_type="text/html")
 
 @app.get("/dashboard")
-async def dashboard(requ):
+async def dashboard(request: Request):
     token = request.cookies.get("access_token")
     if not token:
         # Try to get from Authorization header (for local dev)
@@ -29,15 +29,30 @@ async def dashboard(requ):
             token = auth.split(" ", 1)[1]
     if not token:
         return RedirectResponse("/", status_code=302)
-    if True : #check_jwt(token):
+    if check_jwt(token):
         dashboard_path = os.path.join("Frontend", "dashboard.html")
         return FileResponse(dashboard_path, media_type="text/html")
     else:
         return RedirectResponse("/", status_code=302)
-    
+
+@app.get("/leaderboard")
+async def dashboard(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        # Try to get from Authorization header (for local dev)
+        auth = request.headers.get("authorization")
+        if auth and auth.startswith("Bearer "):
+            token = auth.split(" ", 1)[1]
+    if not token:
+        return RedirectResponse("/", status_code=302)
+    if check_jwt(token):
+        dashboard_path = os.path.join("Frontend", "leaderboard.html")
+        return FileResponse(dashboard_path, media_type="text/html")
+    else:
+        return RedirectResponse("/", status_code=302)   
 
 app.include_router(api_router, prefix="/api")
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)

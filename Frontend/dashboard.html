@@ -16,15 +16,58 @@
                 <span class="navbar-text">Dashboard</span>
             </div>
             <div>
+                <a href="/leaderboard" class="btn btn-outline-warning me-2" id="leaderboardBtn">Leaderboard</a>
                 <span id="userWelcome" class="text-light me-3"></span>
                 <button class="btn btn-outline-light" id="logoutBtn">Logout</button>
             </div>
         </div>
     </nav>
     <main class="container my-5">
-        <h2 class="mb-4">Challenges</h2>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="mb-0">Challenges</h2>
+            <button class="btn btn-success" id="addChallengeBtn" data-bs-toggle="modal" data-bs-target="#addChallengeModal">Add Challenge</button>
+        </div>
         <div id="challengesList" class="row g-4"></div>
     </main>
+
+    <!-- Add Challenge Modal -->
+    <div class="modal fade deep-purple-modal" id="addChallengeModal" tabindex="-1" aria-labelledby="addChallengeModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addChallengeModalLabel">Add New Challenge</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="addChallengeForm" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label for="challengeName" class="form-label">Name</label>
+                <input type="text" class="form-control" id="challengeName" name="name" required>
+              </div>
+              <div class="mb-3">
+                <label for="challengeDescription" class="form-label">Description</label>
+                <textarea class="form-control" id="challengeDescription" name="description" required></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="challengeType" class="form-label">Type</label>
+                <input type="text" class="form-control" id="challengeType" name="type" required>
+              </div>
+              <div class="mb-3">
+                <label for="challengeFile" class="form-label">Challenge File</label>
+                <input type="file" class="form-control" id="challengeFile" name="file" required>
+              </div>
+              <div class="mb-3">
+                <label for="challengeFlag" class="form-label">Flag</label>
+                <input type="text" class="form-control" id="challengeFlag" name="flag" required>
+              </div>
+              <div id="addChallengeError" class="text-danger mb-2" style="display:none;"></div>
+              <button type="submit" class="btn btn-primary w-100">Add Challenge</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer class="footer">
         &copy; 2024 PwnArena. All rights reserved.
     </footer>

@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             if (response.ok) {
               errorDiv.style.display = 'none';
-              alert('Registration successful! You can now log in.');
               document.getElementById('login-tab').click();
               registerForm.reset();
             } else {
@@ -59,8 +58,9 @@ document.addEventListener('DOMContentLoaded', function() {
               // Store JWT and user info in localStorage
               localStorage.setItem('access_token', data.access_token);
               localStorage.setItem('user', JSON.stringify(data.user));
-              alert('Login successful!');
-              window.location.reload();
+              // Set JWT as cookie for backend page access
+              document.cookie = "access_token=" + data.access_token + "; path=/";
+              window.location.href = "/dashboard";
             } else {
               alert(data.detail || 'Login failed.');
             }
