@@ -11,6 +11,7 @@ from typing import List, Optional
 import shutil
 import os
 from fastapi.responses import FileResponse
+import re
 
 DATABASE_URL = "sqlite:///./users.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -61,6 +62,14 @@ SECRET_KEY = "your-secret-key"  # Change this to a secure random value in produc
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
+USERNAME_REGEX = re.compile(r'^[a-zA-Z0-9_]{3,32}$')
+PASSWORD_MIN_LENGTH = 8
+CHALLENGE_NAME_MAX = 64
+CHALLENGE_TYPE_MAX = 32
+CHALLENGE_DESC_MAX = 512
+FLAG_MAX = 128
+DESCRIPTION_SAFE_REGEX = re.compile(r'^[^<>]*$')
+
 
 def check_jwt(token: str):
     try:
@@ -78,8 +87,20 @@ def get_db():
     finally:
         db.close()
 
+def sanitize_text(text, max_length):
+    text = text.strip()
+    if len(text) > max_length:
+        raise HTTPException(status_code=400, detail="Input too long.")
+    return text
+
 @router.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
+    # Username validation
+    if not USERNAME_REGEX.match(user.username):
+        raise HTTPException(status_code=400, detail="Username must be 3-32 characters, alphanumeric or underscore.")
+    # Password validation
+    if len(user.password) < PASSWORD_MIN_LENGTH:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
     user_obj = db.query(User).filter(User.username == user.username).first()
     if user_obj:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -92,6 +113,11 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(user: UserCreate, db: Session = Depends(get_db)):
+    # Username validation (generic error for security)
+    if not USERNAME_REGEX.match(user.username):
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    if len(user.password) < PASSWORD_MIN_LENGTH:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
     user_obj = db.query(User).filter(User.username == user.username).first()
     if not user_obj:
         raise HTTPException(status_code=400, detail="Invalid username or password")
@@ -99,7 +125,7 @@ def login(user: UserCreate, db: Session = Depends(get_db)):
     if user_obj.password_hash != password_hash:
         raise HTTPException(status_code=400, detail="Invalid username or password")
     # Generate JWT access token
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_obj.id),
         "username": user_obj.username,
@@ -138,6 +164,14 @@ def create_challenge(
     db: Session = Depends(get_db),
     authorization: str = Header(None)
 ):
+    # Sanitize and validate challenge fields
+    name = sanitize_text(name, CHALLENGE_NAME_MAX)
+    type = sanitize_text(type, CHALLENGE_TYPE_MAX)
+    description = sanitize_text(description, CHALLENGE_DESC_MAX)
+    flag = sanitize_text(flag, FLAG_MAX)
+    # Prevent XSS in description
+    if not DESCRIPTION_SAFE_REGEX.match(description):
+        raise HTTPException(status_code=400, detail="Description contains forbidden characters (no HTML tags allowed).")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1]
@@ -145,12 +179,31 @@ def create_challenge(
         jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+    # Validate file type and MIME type
+    allowed = False
+    filename = file.filename.lower()
+    content_type = file.content_type
+    if filename == "dockerfile" and content_type in ["text/plain", "application/octet-stream"]:
+        allowed = True
+    elif filename.endswith(".zip") and content_type in ["application/zip", "application/x-zip-compressed", "multipart/x-zip"]:
+        allowed = True
+    elif filename in ["docker-compose.yml", "docker-compose.yaml"] and content_type in ["text/yaml", "application/x-yaml", "text/plain", "application/octet-stream"]:
+        allowed = True
+    if not allowed:
+        # Read and shred the file
+        try:
+            while file.file.read(4096):
+                pass  # Read and discard
+        except Exception:
+            pass
+        raise HTTPException(status_code=400, detail="File must be a Dockerfile, docker-compose file, or zip archive (with correct MIME type).")
     # Save file with timestamp
     os.makedirs("challenges", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename = f"{name}_{timestamp}_{file.filename}"
-    file_path = os.path.join("challenges", filename)
+    save_filename = f"{name}_{timestamp}_{file.filename}"
+    file_path = os.path.join("challenges", save_filename)
     with open(file_path, "wb") as buffer:
+        file.file.seek(0)
         shutil.copyfileobj(file.file, buffer)
     db_chal = Challenge(
         name=name,

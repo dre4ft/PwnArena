@@ -39,6 +39,22 @@ document.addEventListener('DOMContentLoaded', async function() {
         e.preventDefault();
         var errorDiv = document.getElementById('addChallengeError');
         errorDiv.style.display = 'none';
+        // Client-side file type check
+        const fileInput = document.getElementById('challengeFile');
+        const file = fileInput.files[0];
+        if (file) {
+            const fname = file.name.toLowerCase();
+            if (
+                fname !== 'dockerfile' &&
+                fname !== 'docker-compose.yml' &&
+                fname !== 'docker-compose.yaml' &&
+                !fname.endsWith('.zip')
+            ) {
+                errorDiv.textContent = 'File must be a Dockerfile, docker-compose file, or zip archive.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+        }
         const token = localStorage.getItem('access_token');
         const formData = new FormData(addChallengeForm);
         try {
